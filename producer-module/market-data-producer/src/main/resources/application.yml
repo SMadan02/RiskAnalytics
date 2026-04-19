@@ -1,0 +1,25 @@
+# Server Configuration
+server:
+  port: 8080
+
+# Kafka Configuration
+spring:
+    application:
+        name: market-data-producer
+    kafka:
+        bootstrap-servers: localhost:9092  # Where is your Kafka running?
+        producer:
+          key-serializer: org.apache.kafka.common.serialization.StringSerializer
+          value-serializer: org.springframework.kafka.support.serializer.JsonSerializer
+          acks: all       # Confirmation level?
+
+# Custom Application Properties
+app:
+  stocks: AAPL,GOOGL,MSFT,AMZN,TSLA,META,NVDA,JPM,V,DIS,BINANCE:BTCUSDT,BINANCE:ETHUSDT
+  kafka:
+    topic: raw-market-data  # What topic name did you create earlier?
+  finnhub:
+    api-key: d5l8h7hr01qgqufkv6bgd5l8h7hr01qgqufkv6c0
+    websocket-url: wss://ws.finnhub.io
+  simulator:
+    enabled: false

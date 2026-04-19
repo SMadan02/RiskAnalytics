@@ -1,0 +1,19 @@
+{
+	"folders": [
+		{
+			"path": "producer-module"
+		},
+		{
+			"path": "simulation-module"
+		},
+		{
+			"path": "Scripts"
+		},
+		{
+			"path": "dashboard-module"
+		}
+	],
+	"settings": {
+		"java.compile.nullAnalysis.mode": "disabled"
+	}
+}

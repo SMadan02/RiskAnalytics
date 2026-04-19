@@ -1,0 +1,222 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Portfolio Risk Dashboard</title>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body { 
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: #333;
+            padding: 20px;
+        }
+        .container { max-width: 1400px; margin: 0 auto; }
+        
+        header {
+            background: white;
+            padding: 30px;
+            border-radius: 10px;
+            box-shadow: 0 4px 6px rgba(0,0,0,0.1);
+            margin-bottom: 20px;
+        }
+        h1 { color: #667eea; margin-bottom: 10px; }
+        .subtitle { color: #666; }
+        
+        .metrics {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
+            gap: 20px;
+            margin-bottom: 20px;
+        }
+        
+        .metric-card {
+            background: white;
+            padding: 25px;
+            border-radius: 10px;
+            box-shadow: 0 4px 6px rgba(0,0,0,0.1);
+        }
+        .metric-label { 
+            font-size: 14px; 
+            color: #666; 
+            text-transform: uppercase;
+            letter-spacing: 1px;
+        }
+        .metric-value { 
+            font-size: 32px; 
+            font-weight: bold; 
+            color: #667eea;
+            margin-top: 10px;
+        }
+        
+        .chart-container {
+            background: white;
+            padding: 30px;
+            border-radius: 10px;
+            box-shadow: 0 4px 6px rgba(0,0,0,0.1);
+            margin-bottom: 20px;
+        }
+        
+        .assets-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+            gap: 15px;
+        }
+        
+        .asset-card {
+            background: white;
+            padding: 20px;
+            border-radius: 10px;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+            border-left: 4px solid #667eea;
+        }
+        .asset-symbol { 
+            font-size: 18px; 
+            font-weight: bold; 
+            color: #333;
+            margin-bottom: 10px;
+        }
+        .asset-metric { 
+            font-size: 12px; 
+            color: #666;
+            margin: 5px 0;
+        }
+        .asset-metric span { 
+            font-weight: bold; 
+            color: #667eea;
+        }
+        
+        .refresh-btn {
+            background: #667eea;
+            color: white;
+            border: none;
+            padding: 10px 20px;
+            border-radius: 5px;
+            cursor: pointer;
+            font-size: 14px;
+            margin-top: 10px;
+        }
+        .refresh-btn:hover { background: #5568d3; }
+        
+        .timestamp {
+            font-size: 12px;
+            color: #999;
+            margin-top: 10px;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <header>
+            <h1>📊 Portfolio Risk Dashboard</h1>
+            <p class="subtitle">Real-time Value at Risk (VaR) & Expected Shortfall (ES) Analysis</p>
+            <div class="timestamp">Last Updated: <span id="lastUpdate">Loading...</span></div>
+            <button class="refresh-btn" onclick="loadData()">🔄 Refresh Data</button>
+        </header>
+
+        <div class="metrics">
+            <div class="metric-card">
+                <div class="metric-label">Portfolio VaR (95%)</div>
+                <div class="metric-value" id="portfolioVar">--</div>
+            </div>
+            <div class="metric-card">
+                <div class="metric-label">Portfolio ES (95%)</div>
+                <div class="metric-value" id="portfolioEs">--</div>
+            </div>
+            <div class="metric-card">
+                <div class="metric-label">Assets Monitored</div>
+                <div class="metric-value" id="numAssets">--</div>
+            </div>
+        </div>
+
+        <div class="chart-container">
+            <h2>VaR Contribution by Asset</h2>
+            <canvas id="varChart"></canvas>
+        </div>
+
+        <div class="chart-container">
+            <h2>Individual Assets</h2>
+            <div class="assets-grid" id="assetsGrid"></div>
+        </div>
+    </div>
+
+    <script>
+        let varChart = null;
+
+        async function loadData() {
+            try {
+                const response = await fetch('/api/summary');
+                const data = await response.json();
+                
+                // Update metrics
+                document.getElementById('portfolioVar').textContent = `$${data.portfolio_var.toFixed(2)}`;
+                document.getElementById('portfolioEs').textContent = `$${data.portfolio_es.toFixed(2)}`;
+                document.getElementById('numAssets').textContent = data.num_assets;
+                document.getElementById('lastUpdate').textContent = new Date(data.timestamp).toLocaleString();
+                
+                // Update chart
+                updateChart(data.assets);
+                
+                // Update assets grid
+                updateAssetsGrid(data.assets);
+                
+            } catch (error) {
+                console.error('Error loading data:', error);
+            }
+        }
+
+        function updateChart(assets) {
+            const ctx = document.getElementById('varChart').getContext('2d');
+            
+            if (varChart) varChart.destroy();
+            
+            varChart = new Chart(ctx, {
+                type: 'bar',
+                data: {
+                    labels: assets.map(a => a.symbol),
+                    datasets: [{
+                        label: 'VaR (95%)',
+                        data: assets.map(a => a.var),
+                        backgroundColor: 'rgba(102, 126, 234, 0.8)',
+                        borderColor: 'rgba(102, 126, 234, 1)',
+                        borderWidth: 2
+                    }]
+                },
+                options: {
+                    responsive: true,
+                    scales: {
+                        y: {
+                            beginAtZero: true,
+                            title: { display: true, text: 'VaR ($)' }
+                        }
+                    },
+                    plugins: {
+                        legend: { display: false }
+                    }
+                }
+            });
+        }
+
+        function updateAssetsGrid(assets) {
+            const grid = document.getElementById('assetsGrid');
+            grid.innerHTML = assets.map(asset => `
+                <div class="asset-card">
+                    <div class="asset-symbol">${asset.symbol}</div>
+                    <div class="asset-metric">Price: <span>$${asset.price}</span></div>
+                    <div class="asset-metric">VaR: <span>$${asset.var}</span></div>
+                    <div class="asset-metric">ES: <span>$${asset.es}</span></div>
+                    <div class="asset-metric">Risk: <span>${asset.var_pct}%</span></div>
+                </div>
+            `).join('');
+        }
+
+        // Load data on page load
+        loadData();
+        
+        // Auto-refresh every 30 seconds
+        setInterval(loadData, 30000);
+    </script>
+</body>
+</html>

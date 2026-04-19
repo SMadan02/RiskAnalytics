@@ -1,0 +1,112 @@
+# version: '3.8' # docker compose file format version
+
+services: # Define multiple containers
+  # Zookeeper - Kafka's coordination service
+  zookeeper:
+    image: confluentinc/cp-zookeeper:7.5.0 # source of zookeeper image
+    hostname: zookeeper
+    container_name: zookeeper
+    ports:
+      - "2181:2181"
+    environment:
+      ZOOKEEPER_CLIENT_PORT: 2181
+      ZOOKEEPER_TICK_TIME: 2000
+    networks: # so that zookeeper container is connected to the main network
+      - risk-engine-network
+
+  # Kafka - Message broker
+  kafka:
+    image: confluentinc/cp-kafka:7.5.0
+    hostname: kafka
+    container_name: kafka
+    depends_on: # starts zookeeper before starting kafka
+      - zookeeper
+    ports:
+      - "9092:9092"
+      - "9101:9101"
+    environment:
+      KAFKA_BROKER_ID: 1
+      KAFKA_ZOOKEEPER_CONNECT: 'zookeeper:2181'
+      KAFKA_LISTENER_SECURITY_PROTOCOL_MAP: PLAINTEXT:PLAINTEXT,PLAINTEXT_HOST:PLAINTEXT
+      KAFKA_ADVERTISED_LISTENERS: PLAINTEXT://kafka:29092,PLAINTEXT_HOST://localhost:9092
+      KAFKA_OFFSETS_TOPIC_REPLICATION_FACTOR: 1
+      KAFKA_TRANSACTION_STATE_LOG_MIN_ISR: 1
+      KAFKA_TRANSACTION_STATE_LOG_REPLICATION_FACTOR: 1
+      KAFKA_GROUP_INITIAL_REBALANCE_DELAY_MS: 0
+      KAFKA_JMX_PORT: 9101
+      KAFKA_JMX_HOSTNAME: localhost
+    networks:
+      - risk-engine-network
+  
+  # Spark Master and Worker - For distributed data processing
+  # spark-master:
+  #   image: apache/spark:3.5.1-scala2.12-java17
+  #   container_name: spark-master
+  #   # Mode - Master is for coordinating the cluster, while Worker is for executing tasks.
+  #   environment:
+  #     - SPARK_MODE=master
+  #   command: /opt/spark/bin/spark-class org.apache.spark.deploy.master.Master
+  #   ports:
+  #     - "7077:7077"  # Master communication
+  #     - "8080:8080"  # Master Web UI
+  #   # Networks - Connects the Spark Master to the main network so it can communicate with other services like Spark Worker and Kafka.
+  #   # A network in Docker Compose allows containers to communicate with each other. 
+  #   # By defining a network, you can ensure that the services can discover and interact with each other using their service names as hostnames.
+  #   networks:
+  #     - risk-engine-network
+
+  # spark-worker:
+  #   image: apache/spark:3.5.1-scala2.12-java17
+  #   container_name: spark-worker
+  #   depends_on:
+  #     - spark-master
+  #   environment:
+  #     - SPARK_MASTER_URL=spark://spark-master:7077
+  #   command: /opt/spark/bin/spark-class org.apache.spark.deploy.worker.Worker spark://spark-master:7077
+  #   ports:
+  #     - "8081:8081" 
+  #   networks:
+  #     - risk-engine-network
+  spark-master:
+    image: apache/spark:3.5.0
+    container_name: spark-master
+    hostname: spark-master
+    # The official image uses 'spark-class' to start the master
+    command: /opt/spark/bin/spark-class org.apache.spark.deploy.master.Master
+    ports:
+      - "8080:8080" # Web UI
+      - "7077:7077" # Master Port
+    networks:
+      - risk-engine-network
+
+  spark-worker:
+    image: apache/spark:3.5.0
+    container_name: spark-worker
+    depends_on:
+      - spark-master
+    # The worker needs to know where the master is
+    command: /opt/spark/bin/spark-class org.apache.spark.deploy.worker.Worker spark://spark-master:7077
+    ports:
+      - "8081:8081" # Worker Web UI
+    networks:
+      - risk-engine-network
+
+  timescaledb:
+    image: timescale/timescaledb:latest-pg16
+    container_name: timescaledb
+    environment:
+      - POSTGRES_USER=riskengine
+      - POSTGRES_PASSWORD=password123
+      - POSTGRES_DB=riskmetrics
+    ports:
+      - "5432:5432"
+    volumes:
+      - timescale_data:/var/lib/postgresql/data
+    networks:
+      - risk-engine-network
+  
+volumes:
+  timescale_data: # This volume is used to persist the data of the timescaledb container. It ensures that the data stored in the database is not lost when the container is stopped or removed. The volume is mounted to the /var/lib/postgresql/data directory inside the container, which is where PostgreSQL stores its data files.
+networks:
+  risk-engine-network:
+    driver: bridge

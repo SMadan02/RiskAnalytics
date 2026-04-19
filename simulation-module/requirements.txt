@@ -1,0 +1,8 @@
+pyspark==3.5.0 
+kafka-python 
+pandas 
+numpy 
+psycopg2-binary
+matplotlib
+setuptools 
+wheel
